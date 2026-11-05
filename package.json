@@ -1,0 +1,60 @@
+{
+  "name": "dsh-workspace-explorer",
+  "version": "1.1.0",
+  "description": "Browse workspace files from the DSH left sidebar (Chats | Files switch) and drag files or folders into the composer as @path references for DSH to read or edit.",
+  "type": "module",
+  "license": "MIT",
+  "author": "gaor0605-kq",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gaor0605-kq/dsh-workspace-explorer.git"
+  },
+  "homepage": "https://github.com/gaor0605-kq/dsh-workspace-explorer#readme",
+  "bugs": {
+    "url": "https://github.com/gaor0605-kq/dsh-workspace-explorer/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek",
+    "harness",
+    "workspace",
+    "file-explorer",
+    "file-tree",
+    "drag-and-drop"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-workspace-files",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}

@@ -25,6 +25,7 @@ While DSH is working, the workspace is a black box:
 - **One-click insert** — hover a row and click ⤶ to insert the same reference.
 - **Click to preview** — click a file to open DSH's built-in preview in the right sidebar.
 - **Right-click menu** — right-click a file for *Open containing folder* (reveals and selects it in Explorer / Finder), or a folder for *Show in file manager*. The menu also offers Preview, Insert into the composer, and Copy full / relative path. The Menu key or Shift+F10 opens it from the keyboard.
+- **Git status, VS Code style** — names are colored by their state relative to the last commit, with a letter on the right: `M` modified (yellow), `U` untracked / `A` added (green), `D` deleted (red strike-through, kept in place), `!` merge conflict; entries ignored by .gitignore are dimmed; folders with changes inside get a dot. If the workspace itself is not a repository, repositories one level down are picked up, like VS Code. Updates every 5 s, on window focus, and on Reload. Only a read-only `git status` runs — the repository is never modified.
 - **Right-sidebar view (optional)** — the right sidebar's guide also offers *Workspace explorer* with the same tree, handy on wide screens.
 
 ## Usage

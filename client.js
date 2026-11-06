@@ -47,7 +47,15 @@ window.__ModuleLoader__.load({
 			"menu.noDesktop": "当前 DSH 不在本机桌面上运行，无法打开文件夹",
 			"notice.revealFailed": "打开文件夹失败：{message}",
 			"notice.copied": "已复制：{text}",
-			"notice.copyFailed": "复制失败"
+			"notice.copyFailed": "复制失败",
+			"git.M": "已修改（相对最近一次提交）",
+			"git.U": "未跟踪（新文件，尚未加入 Git）",
+			"git.A": "已添加到暂存区（新文件）",
+			"git.D": "已删除（最近一次提交里还有）",
+			"git.R": "已重命名",
+			"git.C": "存在合并冲突",
+			"git.I": "已被 .gitignore 忽略",
+			"git.dir": "此文件夹内有改动"
 		};
 		const en = {
 			"type.label": "Workspace",
@@ -83,7 +91,15 @@ window.__ModuleLoader__.load({
 			"menu.noDesktop": "DSH is not running on this desktop, so folders cannot be opened",
 			"notice.revealFailed": "Could not open the folder: {message}",
 			"notice.copied": "Copied: {text}",
-			"notice.copyFailed": "Copy failed"
+			"notice.copyFailed": "Copy failed",
+			"git.M": "Modified (vs. last commit)",
+			"git.U": "Untracked (new, not in Git yet)",
+			"git.A": "Added to the index (new file)",
+			"git.D": "Deleted (still in the last commit)",
+			"git.R": "Renamed",
+			"git.C": "Merge conflict",
+			"git.I": "Ignored by .gitignore",
+			"git.dir": "Contains changes"
 		};
 
 		// ---------- styles ----------
@@ -148,6 +164,16 @@ window.__ModuleLoader__.load({
 .wsx-menu-item svg{flex:none;width:14px;height:14px;color:var(--dsw-alias-label-secondary)}
 .wsx-menu-sep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-default,rgba(127,127,127,.18))}
 .wsx-notice{margin:4px 8px 0;padding:4px 8px;border-radius:6px;font-size:12px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wsx-badge{flex:none;min-width:14px;margin-left:2px;text-align:center;font-size:11px;font-weight:600;font-family:var(--dsh-font-mono,ui-monospace,Consolas,monospace);color:var(--wsx-git)}
+.wsx-row:hover .wsx-badge{display:none}
+.wsx-git-M{--wsx-git:#c98a1b}
+.wsx-git-U,.wsx-git-A,.wsx-git-R{--wsx-git:#3f9e5c}
+.wsx-git-D{--wsx-git:#d0533f}
+.wsx-git-C{--wsx-git:#d6454f}
+.wsx-row[class*="wsx-git-"] > .wsx-name{color:var(--wsx-git)}
+.wsx-row.wsx-deleted > .wsx-name{text-decoration:line-through}
+.wsx-row.wsx-deleted{cursor:default}
+.wsx-row.wsx-ignored > .wsx-name,.wsx-row.wsx-ignored > .wsx-icon{opacity:.5}
 `;
 		function ensureStyle() {
 			if (typeof document === "undefined") return () => {};
@@ -205,6 +231,108 @@ window.__ModuleLoader__.load({
 			return /[\s"]/.test(p) ? `@"${p.replace(/"/g, "")}"` : `@${p}`;
 		}
 		const fill = (text, vars) => text.replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? String(vars[k]) : ""));
+
+		// ---------- git decorations (VS Code style: working tree vs. last commit) ----------
+		const GIT_ROUTE = "dsh-workspace-explorer/git-status";
+		const GIT_POLL_MS = 5000;
+		/** Same-origin URL anchored on the directory the UI is served from (works behind path prefixes and on Desktop). */
+		const apiUrl = (rel) => {
+			try { return new URL(rel, document.baseURI).pathname; } catch { return `/${rel}`; }
+		};
+		/** Folder rollup: the most important status found anywhere below wins. */
+		const GIT_RANK = { C: 6, M: 5, D: 4, A: 3, R: 3, U: 2 };
+		const GIT_LETTER = { C: "!", M: "M", D: "D", A: "A", R: "R", U: "U" };
+		function deriveGit(json, raw) {
+			if (!json || json.repo !== true || json.error) return null;
+			const files = json.files || {};
+			const dirs = {};
+			const deleted = {};
+			for (const path of Object.keys(files)) {
+				const code = files[path];
+				const parts = path.replace(/\/+$/, "").split("/");
+				for (let k = 1; k < parts.length; k++) {
+					const d = parts.slice(0, k).join("/");
+					if ((GIT_RANK[code] || 0) > (GIT_RANK[dirs[d]] || 0)) dirs[d] = code;
+				}
+				if (code === "D") {
+					// Register the deleted file, and every vanished folder on its way, as phantom children.
+					for (let k = 0; k < parts.length; k++) {
+						const parent = parts.slice(0, k).join("/");
+						const name = parts[k];
+						const isDir = k < parts.length - 1;
+						const bucket = deleted[parent] || (deleted[parent] = new Map());
+						if (!bucket.has(name) || isDir) bucket.set(name, isDir);
+					}
+				}
+			}
+			const ignored = new Set((json.ignored || []).map((p) => p.replace(/\/+$/, "")));
+			return {
+				raw,
+				truncated: json.truncated === true,
+				fileCode: (rel) => files[rel],
+				dirCode: (rel) => dirs[rel],
+				isIgnored: (rel) => {
+					if (ignored.size === 0) return false;
+					let p = rel;
+					for (;;) {
+						if (ignored.has(p)) return true;
+						const i = p.lastIndexOf("/");
+						if (i < 0) return false;
+						p = p.slice(0, i);
+					}
+				},
+				/** Deleted children of `rel` that no longer exist on disk: Map<name, isDir>. */
+				deletedIn: (rel) => deleted[rel],
+				hasDeletedUnder: (rel) => deleted[rel] !== undefined
+			};
+		}
+		/** Poll the host route while the tree is mounted and the page visible; also on focus and on demand. */
+		function useGitStatus(sessionId, enabled) {
+			const [git, setGit] = useState(null);
+			const [nonce, setNonce] = useState(0);
+			useEffect(() => {
+				if (!enabled || !sessionId || typeof fetch !== "function") {
+					setGit(null);
+					return undefined;
+				}
+				let stopped = false;
+				let inflight = false;
+				let ac = null;
+				const run = () => {
+					if (stopped || inflight) return;
+					if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+					inflight = true;
+					ac = new AbortController();
+					fetch(`${apiUrl(GIT_ROUTE)}?session=${encodeURIComponent(sessionId)}`, { cache: "no-store", credentials: "same-origin", signal: ac.signal })
+						.then((r) => (r.ok ? r.text() : null))
+						.then((text) => {
+							if (stopped || text === null) return;
+							setGit((prev) => {
+								if (prev !== null && prev.raw === text) return prev;
+								let json = null;
+								try { json = JSON.parse(text); } catch { json = null; }
+								return deriveGit(json, text);
+							});
+						})
+						.catch(() => {})
+						.finally(() => { inflight = false; });
+				};
+				run();
+				const timer = setInterval(run, GIT_POLL_MS);
+				const wake = () => run();
+				window.addEventListener("focus", wake);
+				document.addEventListener("visibilitychange", wake);
+				return () => {
+					stopped = true;
+					clearInterval(timer);
+					ac?.abort();
+					window.removeEventListener("focus", wake);
+					document.removeEventListener("visibilitychange", wake);
+				};
+			}, [sessionId, enabled, nonce]);
+			const refresh = useCallback(() => setNonce((n) => n + 1), []);
+			return { git, refresh };
+		}
 
 		// ---------- explorer body (right sidebar tab) ----------
 		function makeBody(remote, t, ReactDOM, desktop) {
@@ -289,23 +417,29 @@ window.__ModuleLoader__.load({
 					ctxv.openMenu({ x: e.clientX, y: e.clientY, rel, isDir, isFile: entry.type === "file" });
 				};
 				const targeted = ctxv.menuRel === rel;
+				const deleted = entry.deleted === true;
+				const g = ctxv.git;
+				const code = deleted ? "D" : g === null ? undefined : isDir ? g.dirCode(rel) : g.fileCode(rel);
+				const ignored = !deleted && code === undefined && g !== null && g.isIgnored(rel);
+				const gitText = code !== undefined ? t(isDir ? "git.dir" : `git.${code}`) : ignored ? t("git.I") : null;
+				const gitClass = (code !== undefined ? ` wsx-git-${code}` : "") + (ignored ? " wsx-ignored" : "") + (deleted ? " wsx-deleted" : "");
 				return h("li", { "data-wsx-path": rel, "data-wsx-type": entry.type }, [
 					h("div", {
 						key: "row",
-						className: "wsx-row" + (dragging ? " wsx-dragging" : "") + (targeted ? " wsx-menu-target" : ""),
+						className: "wsx-row" + (dragging ? " wsx-dragging" : "") + (targeted ? " wsx-menu-target" : "") + gitClass,
 						role: "treeitem",
 						"aria-expanded": isDir ? open : undefined,
-						"aria-haspopup": "menu",
+						"aria-haspopup": deleted ? undefined : "menu",
 						tabIndex: 0,
-						draggable: true,
-						title: `${rel}\n${t("open")}`,
+						draggable: !deleted,
+						title: `${rel}${gitText !== null ? `\n${gitText}` : ""}${deleted ? "" : `\n${t("open")}`}`,
 						onDragStart,
 						onDragEnd,
-						onClick,
-						onContextMenu,
+						onClick: deleted && !isDir ? undefined : onClick,
+						onContextMenu: deleted ? (e) => e.preventDefault() : onContextMenu,
 						onKeyDown: (e) => {
-							if (e.key === "Enter") onClick();
-							else if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+							if (e.key === "Enter") { if (!deleted || isDir) onClick(); }
+							else if (!deleted && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) {
 								e.preventDefault();
 								const r = e.currentTarget.getBoundingClientRect();
 								ctxv.openMenu({ x: r.left + 24, y: r.bottom, rel, isDir, isFile: entry.type === "file" });
@@ -315,18 +449,31 @@ window.__ModuleLoader__.load({
 						isDir ? h(CaretIcon, { key: "c", open }) : h("span", { key: "c", style: { width: 12, flex: "none" } }),
 						isDir ? h(FolderIcon, { key: "i", open }) : h(FileIcon, { key: "i" }),
 						h("span", { key: "n", className: "wsx-name" }, entry.name),
-						h("button", { key: "b", type: "button", className: "wsx-ins", title: t("insert"), "aria-label": t("insert"), onClick: insert }, h(InsertIcon))
+						code !== undefined
+							? h("span", { key: "g", className: "wsx-badge", "aria-label": gitText }, isDir ? "\u2022" : GIT_LETTER[code])
+							: null,
+						deleted ? null : h("button", { key: "b", type: "button", className: "wsx-ins", title: t("insert"), "aria-label": t("insert"), onClick: insert }, h(InsertIcon))
 					]),
 					open ? h("ul", { key: "kids", className: "wsx-level", role: "group" }, h(Level, { rel, depth: depth + 1, ctxv })) : null
 				]);
 			}
 
 			function Level({ rel, depth, ctxv }) {
-				const level = ctxv.levels[rel];
+				let level = ctxv.levels[rel];
+				const phantoms = ctxv.git !== null ? ctxv.git.deletedIn(rel) : undefined;
+				// A folder that only exists in the last commit (everything inside deleted) has no listing to wait for.
+				if (phantoms !== undefined && (level === undefined || level.kind === "failed") && ctxv.isPhantom(rel)) level = { kind: "ready", entries: [], truncated: false };
 				if (level === undefined || level.kind === "loading") return h("li", { className: "wsx-note" }, t("loading"));
 				if (level.kind === "failed") return h("li", { className: "wsx-note" }, fill(t("failed"), { message: level.message }));
 				const q = ctxv.filter.trim().toLowerCase();
-				let entries = order(level.entries);
+				let all = level.entries;
+				if (phantoms !== undefined) {
+					const present = new Set(all.map((e) => e.name));
+					const extra = [];
+					for (const [name, isDir] of phantoms) if (!present.has(name)) extra.push({ name, type: isDir ? "directory" : "file", deleted: true });
+					if (extra.length > 0) all = all.concat(extra);
+				}
+				let entries = order(all);
 				if (q !== "") entries = entries.filter((e) => e.type === "directory" && ctxv.expanded.has(join(rel, e.name)) || e.name.toLowerCase().includes(q));
 				const out = entries.map((entry) => h(Row, { key: entry.name, node: { rel: join(rel, entry.name), entry }, depth, ctxv }));
 				if (entries.length === 0) out.push(h("li", { key: "empty", className: "wsx-note" }, t("empty")));
@@ -343,6 +490,7 @@ window.__ModuleLoader__.load({
 			}
 
 			function ExplorerTree({ sessionId, cwd, signal: outerSignal, openFile, bindRefresh, compact }) {
+				const { git, refresh: refreshGit } = useGitStatus(sessionId, Boolean(cwd));
 				const [levels, setLevels] = useState({});
 				const [expanded, setExpanded] = useState(() => new Set([""]));
 				const [filter, setFilter] = useState("");
@@ -388,7 +536,8 @@ window.__ModuleLoader__.load({
 
 				const reload = useCallback(() => {
 					for (const rel of expanded) load(rel);
-				}, [expanded, load]);
+					refreshGit();
+				}, [expanded, load, refreshGit]);
 				useEffect(() => (bindRefresh ? bindRefresh(reload) : undefined), [bindRefresh, reload]);
 
 				if (!cwd) return h("div", { className: "wsx-root" }, h("div", { className: "wsx-note", style: { padding: 14 } }, t("noWorkspace")));
@@ -398,13 +547,23 @@ window.__ModuleLoader__.load({
 					levels,
 					expanded,
 					filter,
+					git,
+					/** True when `rel` is a folder the parent listing no longer has (only known from the last commit). */
+					isPhantom: (rel) => {
+						const i = rel.lastIndexOf("/");
+						const parent = i < 0 ? "" : rel.slice(0, i);
+						const name = i < 0 ? rel : rel.slice(i + 1);
+						const lv = levels[parent];
+						if (lv !== undefined && lv.kind === "ready") return !lv.entries.some((e) => e.name === name);
+						return parent !== "" && ctxv.isPhantom(parent);
+					},
 					toggle: (rel) => {
 						const next = new Set(expanded);
 						if (next.has(rel)) {
 							for (const p of expanded) if (p === rel || p.startsWith(`${rel}/`)) next.delete(p);
 						} else {
 							next.add(rel);
-							if (levels[rel] === undefined || levels[rel].kind === "failed") load(rel);
+							if ((levels[rel] === undefined || levels[rel].kind === "failed") && !ctxv.isPhantom(rel)) load(rel);
 						}
 						setExpanded(next);
 					},

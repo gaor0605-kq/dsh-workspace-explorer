@@ -51,12 +51,10 @@
 **命令行**（把 `web` 换成你实际使用的 profile）：
 
 ```sh
-# 从 npm 安装
-dsh plugin --profile web add dsh-workspace-explorer
-
-# 或直接从 GitHub 安装
 dsh plugin --profile web add github:gaor0605-kq/dsh-workspace-explorer
 ```
+
+> 目前请用上面的 GitHub 方式安装。npm 上的 `dsh-workspace-explorer` 是**另一位作者的另一个插件**，不是本项目；本项目的 npm 包名带作用域（`@gaor0605-kq/dsh-workspace-explorer`），发布后会把安装命令补在这里。
 
 安装后刷新 DSH 页面（Ctrl+F5）即可看到左侧栏的切换开关。
 

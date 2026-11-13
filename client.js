@@ -1,11 +1,11 @@
 window.__ModuleLoader__.load({
-	id: "dsh-workspace-explorer",
+	id: "@gaor0605-kq/dsh-workspace-explorer",
 	factory(require) {
 		const React = require("react");
 		const h = React.createElement;
 		const { useState, useEffect, useCallback, useRef } = React;
 
-		const PKG = "dsh-workspace-explorer";
+		const PKG = "@gaor0605-kq/dsh-workspace-explorer";
 		const KIND = "workspace-explorer";
 		const NS = "workspaceExplorer";
 		/** Private drag payload type; ordinary file drags ("Files") are left to the attachment owner. */

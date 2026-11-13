@@ -1,3 +1,3 @@
 - insert:
     - id: workspace-explorer
-      name: dsh-workspace-explorer
+      name: '@gaor0605-kq/dsh-workspace-explorer'

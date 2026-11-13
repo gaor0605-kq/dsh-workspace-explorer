@@ -1,6 +1,6 @@
 {
-  "name": "dsh-workspace-explorer",
-  "version": "1.2.0",
+  "name": "@gaor0605-kq/dsh-workspace-explorer",
+  "version": "1.2.1",
   "description": "Browse workspace files from the DSH left sidebar (Chats | Files switch) and drag files or folders into the composer as @path references for DSH to read or edit.",
   "type": "module",
   "license": "MIT",

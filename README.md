@@ -51,10 +51,14 @@ While DSH is working, the workspace is a black box:
 **CLI** (replace `web` with the profile you actually use):
 
 ```sh
+# from npm (recommended)
+dsh plugin --profile web add @gaor0605-kq/dsh-workspace-explorer
+
+# or straight from GitHub
 dsh plugin --profile web add github:gaor0605-kq/dsh-workspace-explorer
 ```
 
-> Use the GitHub install above for now. The npm name `dsh-workspace-explorer` belongs to a **different plugin by another author** — it is not this project. This project's npm name is scoped (`@gaor0605-kq/dsh-workspace-explorer`); the install command will be added here once it is published.
+> Mind the scope: this project is **`@gaor0605-kq/dsh-workspace-explorer`**. The unscoped npm name `dsh-workspace-explorer` belongs to a **different plugin by another author**.
 
 Reload the DSH page (Ctrl+F5) afterwards to see the switch in the left sidebar.
 
